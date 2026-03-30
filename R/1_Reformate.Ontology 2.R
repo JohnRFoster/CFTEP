@@ -2,108 +2,81 @@
 #
 # Reshape Ontology Data
 #
-# By: Ryan Miller
+# By: Ryan Miller, John Foster
 #
 #---------------
 
 #---- Set Paths ----
-data.path <- "C:/Documents/Project Documents/CattleFeverTick/Data/"
-code.path <- "C:/Documents/Project Documents/CattleFeverTick/Code/"
+data_path <- "Data"
+code_path <- "R"
 
 
 #---- Load Libraries ----
+library(dplyr)
 library(tidyr)
+library(readr)
 library(stringr)
 library(operators)
 
-source(paste0(code.path, "Supporting.Functions.R"))
-
+# TODO: rename without spaces
+source(file.path(code_path, "Supporting.Functions 2.R"))
 
 #---- Inspection Data ----
-dat <- read.csv(
-  paste0(data.path, "CFTEP+7-22+FDE+Survey+Ontology.csv"),
-  stringsAsFactors = FALSE
+# inspection_data <- "CFTEP+7-22+FDE+Survey+Ontology.csv" old
+inspection_data <- "CFTEP 7-22 FDE Survey Ontology_19.11.24.csv"
+dat <- read_csv(
+  file.path(data_path, inspection_data)
 )
 dim(dat)
 names(dat)
 
 
 #-- Remove NA and "" from master columns
-
-dat <- dat[dat$other_identifiers != "", ]
-nrow(dat)
-
-dat <- dat[dat$completion_date != "", ]
-nrow(dat)
-
-dat <- dat[is.na(dat$latitude) == FALSE, ]
-nrow(dat)
-
-dat <- dat[is.na(dat$longitude) == FALSE, ]
-nrow(dat)
-
-dat <- dat[is.na(dat$inspection_type) == FALSE, ]
-nrow(dat)
-
-dat <- dat[is.na(dat$completion_date) == FALSE, ]
-nrow(dat)
-
-
 #-- Drop problematic columns
-
-col.vec <- c(
+col_vec <- c(
   "scs_state_survey_id",
   "title",
   "Remarks",
-  "comments",
-  "global_premises_id",
-  "prem_location",
-  "prem_location",
-  "owner_name",
-  "owner_address",
+  # "comments", not in newest data
+  # "global_premises_id", not in newest data
+  # "prem_location", not in newest data
+  # "owner_name", not in newest data
+  # "owner_address", not in newest data
   "inspector_name",
-  "Master_Restriction_Name",
-  "national_identifiers",
+  # "Master_Restriction_Name", not in newest data
+  # "national_identifiers", not in newest data
   "Quarantine_End_Date",
   "Quarantine_Start_Date"
 )
 
-dat <- dat[, colnames(dat) %!in% col.vec]
-
-
-org.col <- c(
-  "other_identifiers",
-  "latitude",
-  "longitude",
-  "county",
-  "completion_date",
-  "inspection_type",
-  "Quarantine_Reason"
-)
-
-new.col <- c(
-  "Pasture_Name",
-  "Pasture_Latitude",
-  "Pasture_Longitude",
-  "County_Name",
-  "Inspection_Date",
-  "Inspection_Type",
-  "Pasture_Status"
-)
-
-dat <- rename.columns(dat, org.col, new.col)
-
+dat_tidy <- dat |>
+  filter(
+    # other_identifiers != "", missing, in old code
+    !is.na(latitude),
+    !is.na(longitude),
+    !is.na(inspection_type),
+    !is.na(completion_date)
+  ) |>
+  select(-all_of(col_vec)) |>
+  rename(
+    # Pasture_Name = other_identifiers, not in newest data
+    Pasture_Latitude = latitude,
+    Pasture_Longitude = longitude,
+    County_Name = county,
+    Inspection_Date = completion_date,
+    Inspection_Type = inspection_type,
+    Pasture_Status = Quarantine_Reason
+  )
 
 #--Remove problamatic duplicates
-cnt <- plyr::count(dat)
-dat <- cnt[cnt$freq == 1, ]
-dat <- dat[, -ncol(dat)]
-nrow(dat)
-
+cnt <- plyr::count(dat_tidy)
+dat_cnt <- cnt[cnt$freq == 1, ]
+dat_cnt <- dat_cnt[, -ncol(dat_cnt)]
+nrow(dat_cnt)
 
 #-- Rename columns
 
-pattern.vec <- c(
+pattern_vec <- c(
   "Inspected",
   "Infested",
   "Added",
@@ -117,34 +90,38 @@ pattern.vec <- c(
   "BM86"
 )
 
+for (i in seq_along(pattern_vec)) {
+  col_names <- alter.column.names(
+    in.dat = dat_cnt,
+    pattern.str = pattern_vec[i]
+  )
 
-for (i in 1:length(pattern.vec)) {
-  col.names <- alter.column.names(in.dat = dat, pattern.str = pattern.vec[i])
-
-  colnames(dat) <- col.names
+  colnames(dat_cnt) <- col_names
 } #END Loop
 
 
 #Reorder Columns
+new_col <- c(
+  "Pasture_Latitude",
+  "Pasture_Longitude",
+  "County_Name",
+  "Inspection_Date",
+  "Inspection_Type",
+  "Pasture_Status"
+)
 
-col.names <- colnames(dat)
-
-col.names <- col.names[order(col.names)]
-
-col.names <- c(new.col, col.names[col.names %!in% new.col])
-
-
-dat <- dat[, c(new.col, col.names[col.names %!in% new.col])]
+col_names <- colnames(dat_cnt)
+col_names <- col_names[order(col_names)]
+col_names <- c(new_col, col_names[col_names %!in% new_col])
+dat_cnt2 <- dat_cnt[, c(new_col, col_names[col_names %!in% new_col])]
 
 #Look for duplicates (needed for reshaping below)
-tmp <- plyr::count(dat[, new.col])
+tmp <- plyr::count(dat_cnt2[, new_col])
 tmp <- tmp[order(-tmp$freq), ]
-nrow(dat)
-
+nrow(dat_cnt2)
 
 #--Reshape Data - converting wide columns to long
-
-pattern.vec <- c(
+pattern_vec <- c(
   "Inspected",
   "Infested",
   "Added",
@@ -159,23 +136,23 @@ pattern.vec <- c(
 )
 
 #Loop over
-for (i in 1:length(pattern.vec)) {
+for (i in seq_along(pattern_vec)) {
   tmp <- wide.to.long(
-    in.dat = dat,
-    mast.col = new.col,
-    pattern.str = pattern.vec[i]
+    in.dat = dat_cnt2,
+    mast.col = new_col,
+    pattern.str = pattern_vec[i]
   )
 
-  col.name <- colnames(tmp)
+  col_name <- colnames(tmp)
 
   if (i == 1) {
     out <- tmp
   }
   if (i > 1) {
     out <- cbind.data.frame(out, tmp[, ncol(tmp)])
-    colnames(out)[ncol(out)] <- col.name[length(col.name)]
+    colnames(out)[ncol(out)] <- col_name[length(col_name)]
   }
-  #if(i>1){out<-merge(out,tmp,by=new.col)}
+  #if(i>1){out<-merge(out,tmp,by=new_col)}
 
   print(nrow(out))
 } #END Loop
@@ -186,100 +163,80 @@ nrow(out)
 #--Add site level variables
 
 #Acreage
-x <- aggregate(
-  acreage ~ Pasture_Name +
-    Pasture_Latitude +
-    Pasture_Longitude +
-    County_Name +
-    Inspection_Date +
-    STCOUNTYFP,
-  data = dat,
-  FUN = mean
-)
+x <- dat_cnt2 |>
+  filter(!is.na(acreage)) |>
+  group_by(
+    # Pasture_Name,
+    Pasture_Latitude,
+    Pasture_Longitude,
+    County_Name,
+    Inspection_Date
+  ) |>
+  reframe(
+    acreage = mean(acreage)
+  )
 
-tmp <- merge(
+tmp <- left_join(
   out,
   x,
   by = c(
-    "Pasture_Name",
+    # "Pasture_Name",
     "Pasture_Latitude",
     "Pasture_Longitude",
     "County_Name",
     "Inspection_Date"
-  ),
-  all.x = TRUE
+  )
 )
-
-tmp$County_Code <- substring(tmp$STCOUNTYFP, first = 3, last = 5)
+# no fips in new data
+# tmp$County_Code <- substring(tmp$STCOUNTYFP, first = 3, last = 5)
 
 dat <- tmp
 
 #--Rename Columns for easy merging
-
-org.col <- c(
-  "Inspected",
-  "Infested",
-  "Added",
-  "Moved",
-  "Dead",
-  "Herds",
-  "Dipped",
-  "Frozen",
-  "Dectomax",
-  "Sprayed",
-  "BM86"
-)
-new.col <- c(
-  "Inspected",
-  "Infested",
-  "Added",
-  "Moved",
-  "Dead",
-  "Herds",
-  "Dipped",
-  "Frozen",
-  "Dectomax",
-  "Sprayed",
-  "BM86"
-)
-
-dat <- rename.columns(dat, org.col = org.col, new.col = paste0("Qty_", new.col))
-
-
-org.col <- c("acreage")
-new.col <- c("Pasture_Qty_Acres")
-
-dat <- rename.columns(dat, org.col = org.col, new.col = paste0("Qty_", new.col))
-
+dat_qty <- dat |>
+  rename(
+    Qty_Inspected = Inspected,
+    Qty_Infested = Infested,
+    Qty_Added = Added,
+    Qty_Moved = Moved,
+    Qty_Dead = Dead,
+    Qty_Herds = Herds,
+    Qty_Dipped = Dipped,
+    Qty_Frozen = Frozen,
+    Qty_Dectomax = Dectomax,
+    Qty_Sprayed = Sprayed,
+    Qty_BM86 = BM86,
+    Pasture_Qty_Acres = acreage
+  )
 
 #--Read tick tracker data and add missing columns
 
 #Read csv file
-template.dat <- read.csv(
-  paste0(data.path, "CFT_InspectionDataInitial_8.9.20.csv"),
+template_dat <- read.csv(
+  file.path(data_path, "CFT_InspectionDataInitial_8.9.20.csv"),
   stringsAsFactors = FALSE
 )
-template.dat <- template.dat[FALSE, ]
+template_dat <- template_dat[FALSE, ]
 
 #Get column names
-template.cols <- colnames(template.dat)
-col.names <- template.cols[template.cols %!in% colnames(dat)]
+template_cols <- colnames(template_dat)
+col_names <- template_cols[template_cols %!in% colnames(dat_qty)]
 
 #Generate template data
-template.dat <- template.dat[, colnames(template.dat) %in% col.names]
+template_dat <- template_dat[, colnames(template_dat) %in% col_names]
 
 #Add NA values
-template.dat[1:nrow(dat), ] <- NA
+template_dat[seq_len(nrow(dat_qty)), ] <- NA
 
 #Add to SCS data
-dat <- cbind.data.frame(dat, template.dat)
+dat <- bind_cols(dat_qty, template_dat)
 
 #Reorder to match tick tracker
-dat <- dat[, template.cols]
+dat <- dat[, template_cols]
 
 
 #--Alter numeric columns and deal with NA values
-col.names <- c(
+col_names <- c(
   "Qty_Herds",
   "Qty_Inspected",
   "Qty_Infested",
@@ -290,33 +247,35 @@ col.names <- c(
 )
 
 #Convert to numeric
-for (i in 1:length(col.names)) {
-  dat[, col.names[i]] <- as.numeric(dat[, col.names[i]])
+for (i in seq_along(col_names)) {
+  dat[, col_names[i]] <- as.numeric(dat[, col_names[i]])
 } #END Loop
 
-#Convert NA to -9 and 0 to -9
-for (i in 1:length(col.names)) {
-  x <- dat[, col.names[i]]
-  dat[is.na(x) == TRUE, col.names[i]] <- -9
+data <- dat |>
+  mutate(across(starts_with("Qty"), as.numeric)) |>
+  glimpse()
 
-  x <- dat[, col.names[i]]
-  dat[(x == 0) == TRUE, col.names[i]] <- -9
-  print(summary(dat[, col.names[i]]))
+#Convert NA to -9 and 0 to -9
+for (i in seq_along(col_names)) {
+  x <- dat[, col_names[i]]
+  dat[is.na(x) == TRUE, col_names[i]] <- -9
+
+  x <- dat[, col_names[i]]
+  dat[(x == 0) == TRUE, col_names[i]] <- -9
+  print(summary(dat[, col_names[i]]))
 } #END Loop
 
 #Convert all -9 to NA
-for (i in 1:length(col.names)) {
-  x <- dat[, col.names[i]]
-  dat[(x == -9) == TRUE, col.names[i]] <- NA
-  print(summary(dat[, col.names[i]]))
+for (i in seq_along(col_names)) {
+  x <- dat[, col_names[i]]
+  dat[(x == -9) == TRUE, col_names[i]] <- NA
+  print(summary(dat[, col_names[i]]))
 } #END Loop
 
-
 #--Write Data
-write.csv(
+write_csv(
   dat,
-  paste0(data.path, "scs.ontology.reshaped.", Sys.Date(), ".csv"),
-  row.names = FALSE
+  file.path(data_path, "scs.ontology.reshaped.csv")
 )
 
 ##---- END END ----
