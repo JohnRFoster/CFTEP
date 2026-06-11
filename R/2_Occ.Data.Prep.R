@@ -14,50 +14,60 @@ gc()
 
 
 #----Set Directories----
-data_path <- "Data"
-# sp_data_path <- "C:/DATA/Cartography.Layers/" # not used
-write_path <- "Data"
+code.path <- "C:/Documents/Project Documents/CattleFeverTick/Code/"
+data.path <- "C:/Documents/Project Documents/CattleFeverTick/Data/"
+sp.data.path <- "C:/DATA/Cartography.Layers/"
+write.path <- "C:/Documents/Project Documents/CattleFeverTick/Model.data/"
 
 
 #----Load Packages for Session----
+packages.vec <- c(
+  "sp",
+  "plyr",
+  "raster",
+  "tidyr",
+  "anytime",
+  "lubridate",
+  "operators",
+  "geosphere"
+)
 
-library(sp)
-library(plyr)
-library(raster)
-library(tidyr)
-library(anytime)
-library(lubridate)
-library(operators)
-library(geosphere)
+# Check if installed and install if not
+if (
+  FALSE %in% unique(is.element(packages.vec, rownames(installed.packages())))
+) {
+  install.packages(setdiff(packages.vec, rownames(installed.packages())))
+}
+# load
+lapply(packages.vec, require, character.only = TRUE)
 
-source("R/Supporting.Functions 2.R")
+source(paste0(code.path, "Supporting.Functions.R"))
 
 #----END Load libraries----
 
 #---- Read Inspection Data ----
-dat_tt <- read.csv(
-  file.path(data_path, "CFT_InspectionDataInitial_8.9.20.csv"),
+dat.tt <- read.csv(
+  paste0(data.path, "CFT_InspectionDataInitial_8.9.20.csv"),
   stringsAsFactors = FALSE
 )
-dim(dat_tt)
-names(dat_tt)
-glimpse(dat_tt)
+dim(dat.tt)
+names(dat.tt)
 
-dat_tt$db.source <- "tt"
+dat.tt$db.source <- "tt"
 
-dat_scs <- read.csv(
-  file.path(data_path, "scs.ontology.reshaped.csv"),
+
+dat.scs <- read.csv(
+  paste0(data.path, "scs.ontology.reshaped.2022-04-27.csv"),
   stringsAsFactors = FALSE
 )
-dim(dat_scs)
-names(dat_scs)
-glimpse(dat_scs)
+dim(dat.scs)
+names(dat.scs)
 
-dat_scs$db.source <- "scs"
+dat.scs$db.source <- "scs"
 
 #Keep only those records with data
 
-col_names <- c(
+col.names <- c(
   "Qty_Herds",
   "Qty_Inspected",
   "Qty_Infested",
@@ -67,15 +77,14 @@ col_names <- c(
   "Qty_Calves_Added"
 )
 
-dat_scs <- completeFun(dat_scs, col_names)
-dim(dat_scs)
-names(dat_scs)
+dat.scs <- completeFun(dat.scs, col.names)
+dim(dat.scs)
+names(dat.scs)
 
 #--Merge SCS and Tick Tracker Data
-dat <- rbind.data.frame(dat_tt, dat_scs)
+dat <- rbind.data.frame(dat.tt, dat.scs)
 dim(dat)
 names(dat)
-glimpse(dat)
 
 length(unique(dat$Pasture_Name))
 
@@ -93,6 +102,7 @@ dat[is.na(dat$Pasture_Latitude) == TRUE, "Pasture_Latitude"] <- dat[
 
 
 #--Address multple lat / lon for same pasture
+
 tmp <- aggregate(
   Pasture_Longitude ~ Pasture_Name,
   data = dat,
@@ -168,58 +178,58 @@ dat[is.na(dat$Pasture_Vacated) == TRUE, "Pasture_Vacated"] <- "N"
 plyr::count(dat$Inspection_Type)
 
 #--Remove empty and 'none' inspection types
-val_list <- c("", "None", "Horse River Patrol")
-dat <- dat[dat$Inspection_Type %!in% val_list, ]
+val.list <- c("", "None", "Horse River Patrol")
+dat <- dat[dat$Inspection_Type %!in% val.list, ]
 
 #--Consolidate inspection types
-val_list <- c(
+val.list <- c(
   "14-day Prem-VPatrol",
   "14-day Prem-Range",
   "14-day Prem-Pen",
   "14-day Pass"
 )
-dat[dat$Inspection_Type %in% val_list, "Inspection_Type"] <- "14-day inspection"
+dat[dat$Inspection_Type %in% val.list, "Inspection_Type"] <- "14-day inspection"
 
-val_list <- c(
+val.list <- c(
   "Equip Inspection",
   "Horse Patrol Inspection",
   "Vehicle Patrol Inspection"
 )
-dat[dat$Inspection_Type %in% val_list, "Inspection_Type"] <- "14-day inspection"
+dat[dat$Inspection_Type %in% val.list, "Inspection_Type"] <- "14-day inspection"
 
-val_list <- c("Wildlife-Range")
-dat[dat$Inspection_Type %in% val_list, "Inspection_Type"] <- "14-day inspection"
+val.list <- c("Wildlife-Range")
+dat[dat$Inspection_Type %in% val.list, "Inspection_Type"] <- "14-day inspection"
 
-val_list <- c(
+val.list <- c(
   "Premises",
   "Pen",
   "One-time Movement",
   "Issue Quarantine",
   "Infested"
 )
-dat[dat$Inspection_Type %in% val_list, "Inspection_Type"] <- "Scratch"
+dat[dat$Inspection_Type %in% val.list, "Inspection_Type"] <- "Scratch"
 
-val_list <- c("Wildlife-Scratch")
-dat[dat$Inspection_Type %in% val_list, "Inspection_Type"] <- "Scratch"
+val.list <- c("Wildlife-Scratch")
+dat[dat$Inspection_Type %in% val.list, "Inspection_Type"] <- "Scratch"
 
 #--Consolidate species
-val_list <- c("Nilgai Bull", "Nilgai Cow", "Nilgai Unknown")
-dat[dat$Species %in% val_list, "Species"] <- "Nilgai"
+val.list <- c("Nilgai Bull", "Nilgai Cow", "Nilgai Unknown")
+dat[dat$Species %in% val.list, "Species"] <- "Nilgai"
 
-val_list <- c(
+val.list <- c(
   "Whitetail Buck",
   "Whitetail Deer",
   "Whitetail Doe",
   "Whitetail Unknown",
   "Deer"
 )
-dat[dat$Species %in% val_list, "Species"] <- "Whitetail"
+dat[dat$Species %in% val.list, "Species"] <- "Whitetail"
 
-val_list <- c("Other Species", "Other_Wildlife")
-dat[dat$Species %in% val_list, "Species"] <- "Other_Wildlife"
+val.list <- c("Other Species", "Other_Wildlife")
+dat[dat$Species %in% val.list, "Species"] <- "Other_Wildlife"
 
-val_list <- c("Premises")
-dat[dat$Species %in% val_list, "Species"] <- "Bovine"
+val.list <- c("Premises")
+dat[dat$Species %in% val.list, "Species"] <- "Bovine"
 
 dat[is.na(dat$Species) == TRUE, "Species"] <- "None"
 
@@ -252,17 +262,17 @@ nrow(dat)
 #---- Modify Dates ----
 
 #Convert to dates
-date_vals_tt <- as.Date(
+date.vals.tt <- as.Date(
   dat[dat$db.source == "tt", "Inspection_Date"],
   "%m/%d/%y"
 )
-date_vals_scs <- as.Date(
+date.vals.scs <- as.Date(
   dat[dat$db.source == "scs", "Inspection_Date"],
   "%Y-%m-%d"
 )
 
-dat[dat$db.source == "tt", "tmp"] <- date_vals_tt
-dat[dat$db.source == "scs", "tmp"] <- date_vals_scs
+dat[dat$db.source == "tt", "tmp"] <- date.vals.tt
+dat[dat$db.source == "scs", "tmp"] <- date.vals.scs
 
 dat$Inspection_Date <- dat$tmp
 dat <- dat[, -ncol(dat)]
@@ -278,7 +288,7 @@ dat$month <- month(dat$Inspection_Date)
 #---- Make Site Level Data ----
 
 #--Pasture Size
-site_size <- aggregate(
+site.size <- aggregate(
   cbind(Pasture_Qty_Acres, Pasture_Latitude, Pasture_Longitude) ~ Pasture_Name +
     County_Name,
   data = dat,
@@ -289,17 +299,17 @@ site_size <- aggregate(
 
 #--Set those sites with no size to NA
 
-site_size[is.nan(site_size$Pasture_Qty_Acres), "Pasture_Qty_Acres"] <- 0
-site_size[site_size$Pasture_Qty_Acres == 0, "Pasture_Qty_Acres"] <- NA
+site.size[is.nan(site.size$Pasture_Qty_Acres), "Pasture_Qty_Acres"] <- 0
+site.size[site.size$Pasture_Qty_Acres == 0, "Pasture_Qty_Acres"] <- NA
 
-nrow(site_size)
-length(unique(site_size$Pasture_Name))
+nrow(site.size)
+length(unique(site.size$Pasture_Name))
 
 
 #--Herd size
 
 #Herd size by year
-site_herd_size <- aggregate(
+site.herd.size <- aggregate(
   cbind(Qty_Inspected) ~ Pasture_Latitude +
     Pasture_Longitude +
     Pasture_Name +
@@ -313,24 +323,24 @@ site_herd_size <- aggregate(
 )
 
 #Annual herd size
-site_herd_size <- aggregate(
+site.herd.size <- aggregate(
   cbind(Qty_Inspected) ~ Pasture_Latitude +
     Pasture_Longitude +
     Pasture_Name +
     County_Name +
     Species,
-  data = site_herd_size,
+  data = site.herd.size,
   FUN = mean,
   na.rm = TRUE,
   na.action = na.pass
 )
 
-nrow(site_herd_size)
-length(unique(site_herd_size$Pasture_Name))
+nrow(site.herd.size)
+length(unique(site.herd.size$Pasture_Name))
 
-site_dat <- merge(
-  site_herd_size,
-  site_size,
+site.dat <- merge(
+  site.herd.size,
+  site.size,
   by = c(
     "Pasture_Latitude",
     "Pasture_Longitude",
@@ -341,18 +351,18 @@ site_dat <- merge(
   all.y = TRUE
 )
 
-site_dat <- spread(site_dat, Species, Qty_Inspected)
-nrow(site_dat)
-length(unique(site_dat$Pasture_Name))
+site.dat <- spread(site.dat, Species, Qty_Inspected)
+nrow(site.dat)
+length(unique(site.dat$Pasture_Name))
 
-site_dat$site.wildlife <- rowSums(site_dat[, c(
+site.dat$site.wildlife <- rowSums(site.dat[, c(
   "Nilgai",
   "Whitetail",
   "Other_Wildlife"
 )])
 
-site_dat <- site_dat[,
-  colnames(site_dat) %!in%
+site.dat <- site.dat[,
+  colnames(site.dat) %!in%
     c(
       "Nilgai",
       "None",
@@ -368,45 +378,42 @@ site_dat <- site_dat[,
 
 
 #Change colnames
-colnames(site_dat)[which(colnames(site_dat) == "Bovine")] <- "site.inv.bovine"
-colnames(site_dat)[which(colnames(site_dat) == "Equine")] <- "site.inv.equine"
-colnames(site_dat)[which(
-  colnames(site_dat) == "Pasture_Qty_Acres"
+colnames(site.dat)[which(colnames(site.dat) == "Bovine")] <- "site.inv.bovine"
+colnames(site.dat)[which(colnames(site.dat) == "Equine")] <- "site.inv.equine"
+colnames(site.dat)[which(
+  colnames(site.dat) == "Pasture_Qty_Acres"
 )] <- "site.pasture_qty_acres"
 
 #Set NA inventories to zero
-site_dat[is.na(site_dat$site.inv.bovine) == TRUE, "site.inv.bovine"] <- 0
-site_dat[is.na(site_dat$site.inv.equine) == TRUE, "site.inv.equine"] <- 0
+site.dat[is.na(site.dat$site.inv.bovine) == TRUE, "site.inv.bovine"] <- 0
+site.dat[is.na(site.dat$site.inv.equine) == TRUE, "site.inv.equine"] <- 0
 
 #--Adjust units
-site_dat$site.inv.bovine <- round(site_dat$site.inv.bovine)
-site_dat$site.inv.equine <- round(site_dat$site.inv.equine)
+site.dat$site.inv.bovine <- round(site.dat$site.inv.bovine)
+site.dat$site.inv.equine <- round(site.dat$site.inv.equine)
 
 
 #---- Generate Neighborhood Mean for site.pasture_qty_acres with missing area
 
-site_dat <- neighbor.mean(site_dat, col.name = "site.pasture_qty_acres")
+site.dat <- neighbor.mean(site.dat, col.name = "site.pasture_qty_acres")
 
-site_dat[
-  is.nan(site_dat$site.pasture_qty_acres) == TRUE,
+site.dat[
+  is.nan(site.dat$site.pasture_qty_acres) == TRUE,
   "site.pasture_qty_acres"
 ] <- NA
 
 #Fill in those remaining
-ntmp <- length(which(is.na(site_dat$site.pasture_qty_acres)))
-if (ntmp > 0) {
-  site_dat <- neighbor.mean(site_dat, col.name = "site.pasture_qty_acres")
-}
+site.dat <- neighbor.mean(site.dat, col.name = "site.pasture_qty_acres")
 
 #---- END
 
 #--Make Site Densities
-site_dat$site.dens.bovine <- round(
-  site_dat$site.inv.bovine / site_dat$site.pasture_qty_acres,
+site.dat$site.dens.bovine <- round(
+  site.dat$site.inv.bovine / site.dat$site.pasture_qty_acres,
   digits = 3
 )
-site_dat$site.dens.equine <- round(
-  site_dat$site.inv.equine / site_dat$site.pasture_qty_acres,
+site.dat$site.dens.equine <- round(
+  site.dat$site.inv.equine / site.dat$site.pasture_qty_acres,
   digits = 3
 )
 
@@ -415,7 +422,7 @@ site_dat$site.dens.equine <- round(
 #--Merge site and obs data
 dat <- merge(
   dat,
-  site_dat,
+  site.dat,
   by = c("Pasture_Name", "Pasture_Latitude", "Pasture_Longitude", "County_Name")
 )
 
@@ -442,7 +449,7 @@ dat$jdate <- format(dat$Inspection_Date, "%j")
 #---- Generate Observation Level Covariates
 
 #--Aggregate data for same visit
-obs_dat <- aggregate(
+obs.dat <- aggregate(
   cbind(Qty_Infested, Qty_Inspected, Qty_Added) ~ jdate +
     Pasture_Name +
     Inspection_Type +
@@ -454,10 +461,10 @@ obs_dat <- aggregate(
   na.rm = TRUE,
   na.action = na.pass
 )
-nrow(obs_dat)
-length(unique(obs_dat$Pasture_Name))
+nrow(obs.dat)
+length(unique(obs.dat$Pasture_Name))
 
-obs_dat_mu <- aggregate(
+obs.dat.mu <- aggregate(
   cbind(apr.infest.prev, prop.new.animals) ~ jdate +
     year +
     Pasture_Name +
@@ -469,36 +476,36 @@ obs_dat_mu <- aggregate(
   na.rm = TRUE,
   na.action = na.pass
 )
-nrow(obs_dat_mu)
-length(unique(obs_dat_mu$Pasture_Name))
+nrow(obs.dat.mu)
+length(unique(obs.dat.mu$Pasture_Name))
 
-obs_dat <- merge(
-  obs_dat,
-  obs_dat_mu,
+obs.dat <- merge(
+  obs.dat,
+  obs.dat.mu,
   by = c("jdate", "year", "Pasture_Name", "Inspection_Type", "Species", "month")
 )
-nrow(obs_dat)
-length(unique(obs_dat$Pasture_Name))
+nrow(obs.dat)
+length(unique(obs.dat$Pasture_Name))
 
 #--Convert infested to 0,1
-obs_dat$y <- obs_dat$Qty_Infested
-obs_dat[obs_dat$y > 0, "y"] <- 1
+obs.dat$y <- obs.dat$Qty_Infested
+obs.dat[obs.dat$y > 0, "y"] <- 1
 
-#site_dat$Qty_Added<-site_dat$Qty_Added+1
+#site.dat$Qty_Added<-site.dat$Qty_Added+1
 
 #---- Merge Observation and Site Level Data
-out_dat <- merge(obs_dat, site_dat, by = c("Pasture_Name"))
-nrow(out_dat)
-length(unique(out_dat$Pasture_Name))
+out.dat <- merge(obs.dat, site.dat, by = c("Pasture_Name"))
+nrow(out.dat)
+length(unique(out.dat$Pasture_Name))
 
-colnames(out_dat) <- tolower(colnames(out_dat))
+colnames(out.dat) <- tolower(colnames(out.dat))
 
 # Formate for csvToUMF import function
 #Requires data to be: Site ID, Date of Observation, Observations (y), Covariates....
 
 #--Formate: Site level data, Covariates, Response....
 
-col_names <- c(
+col.names <- c(
   "pasture_name",
   "jdate",
   "y",
@@ -521,14 +528,14 @@ col_names <- c(
   "site.dens.equine"
 )
 
-wrt_dat <- out_dat[, col_names]
+wrt.dat <- out.dat[, col.names]
 
-summary(wrt_dat)
-glimpse(wrt_dat)
+
+summary(wrt.dat)
 
 write.csv(
-  wrt_dat,
-  file.path(write_path, paste0("dat.occ.cov.", Sys.Date(), ".csv")),
+  wrt.dat,
+  paste0(write.path, "dat.occ.cov.", Sys.Date(), ".csv"),
   row.names = FALSE
 )
 
