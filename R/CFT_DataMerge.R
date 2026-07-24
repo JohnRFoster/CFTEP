@@ -1,8 +1,10 @@
-setwd("path")
-inspectiondata <- read.csv(
-      "CFT_InspectionData_8.9.20.csv",
-      stringsAsFactors = TRUE
-)
+library(readr)
+
+data_dir <- "data"
+
+inspection_data_fname <- "CFT_InspectionData_8.9.20.csv"
+inspectiondata <- read_csv(file.path(data_dir, inspection_data_fname))
+
 premisesdata <- read.csv(
       "C:/Users/Andrew.Browne/OneDrive - USDA/CFT/TickTrackerData/TAHC+LairdTickTrackerExport-PremInspTreat-2019-09-19_Premises.csv",
       stringsAsFactors = TRUE
@@ -38,6 +40,8 @@ inspectionmerge <- merge(
       by = "Pasture_Name",
       all.x = TRUE
 )
+
+
 write.csv(inspectionmerge, "CFT_InspectionDataInitial_8.9.20.csv")
 ###Data needs to have ".x" columns deleted"
 #Way to have it write over the columns?  Not vital#
