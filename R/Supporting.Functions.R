@@ -137,9 +137,16 @@ median.distance.to.infested <- function(dat, type) {
         tmp <- boxplot(pnt.dist, plot = FALSE)$out
 
         if (length(tmp) != 0) {
-          cut.pnt <- min(tmp[tmp > median(pnt.dist)]) - 0.01
-          val.med <- median(pnt.dist[pnt.dist < cut.pnt])
-          val.sd <- sd(pnt.dist[pnt.dist < cut.pnt])
+          out_less_than_median <- tmp < median(pnt.dist)
+          if (all(out_less_than_median)) {
+            cut.pnt <- max(tmp[out_less_than_median]) + 0.01
+            val.med <- median(pnt.dist[pnt.dist > cut.pnt])
+            val.sd <- sd(pnt.dist[pnt.dist > cut.pnt])
+          } else {
+            cut.pnt <- min(tmp[tmp > median(pnt.dist)]) - 0.01
+            val.med <- median(pnt.dist[pnt.dist < cut.pnt])
+            val.sd <- sd(pnt.dist[pnt.dist < cut.pnt])
+          }
         }
         if (length(tmp) == 0) {
           val.med <- median(pnt.dist)
@@ -256,18 +263,18 @@ generate.lag.rate <- function(dat) {
 
 voronoipolygons <- function(layer) {
   require(deldir)
-  crds = layer@coords
-  z = deldir(crds[, 1], crds[, 2])
-  w = tile.list(z)
-  polys = vector(mode = 'list', length = length(w))
+  crds <- layer@coords
+  z <- deldir(crds[, 1], crds[, 2])
+  w <- tile.list(z)
+  polys <- vector(mode = 'list', length = length(w))
   require(sp)
   for (i in seq(along = polys)) {
-    pcrds = cbind(w[[i]]$x, w[[i]]$y)
-    pcrds = rbind(pcrds, pcrds[1, ])
-    polys[[i]] = Polygons(list(Polygon(pcrds)), ID = as.character(i))
+    pcrds <- cbind(w[[i]]$x, w[[i]]$y)
+    pcrds <- rbind(pcrds, pcrds[1, ])
+    polys[[i]] <- Polygons(list(Polygon(pcrds)), ID = as.character(i))
   }
-  SP = SpatialPolygons(polys)
-  voronoi = SpatialPolygonsDataFrame(
+  SP <- SpatialPolygons(polys)
+  voronoi <- SpatialPolygonsDataFrame(
     SP,
     data = data.frame(
       Pasture_Name = layer$Pasture_Name,
@@ -329,7 +336,6 @@ generate.adj.pasture.dist <- function(dat) {
     #-- Add Spatial Relationship to Adjacents
 
     #--Create Neighbor List
-    require(spdep)
     W.nb <- poly2nb(vp, row.names = rownames(vp@data))
     W.list <- nb2listw(W.nb, style = "W")
 
@@ -593,8 +599,6 @@ generate.annual.subsets <- function(occ.raw, year.val) {
 #-- FNC - Generate Neighbor Mean
 
 neighbor.mean <- function(in.dat, col.name) {
-  pb <- txtProgressBar(min = 0, max = length(year.vec), style = 3)
-
   # Generate unique values
   tmp <- unique(in.dat[, c(
     "Pasture_Name",
@@ -630,25 +634,28 @@ neighbor.mean <- function(in.dat, col.name) {
   #-- Add columns
   rownames(vp@data) <- vp$Pasture_Name
 
-  pas.vec <- unique(in.dat[is.na(in.dat[, col.name]) == TRUE, "Pasture_Name"])
+  pas.vec <- unique(in.dat[!is.na(in.dat[, col.name]), "Pasture_Name"])
 
-  #Loop over pastures
-  for (i in 1:length(pas.vec)) {
-    row.vec <- W.list$neighbours[[i]]
+  if (all(!is.na(in.dat[, col.name]))) {
+    #Loop over pastures
+    pb <- txtProgressBar(min = 0, max = length(pas.vec), style = 3)
+    for (i in 1:length(pas.vec)) {
+      row.vec <- W.list$neighbours[[i]]
 
-    vec <- vp@data[row.vec, "Pasture_Name"]
+      vec <- vp@data[row.vec, "Pasture_Name"]
 
-    vec <- vec[vec != pas.vec[i]]
+      vec <- vec[vec != pas.vec[i]]
 
-    tmp <- in.dat[in.dat$Pasture_Name %in% vec, c("Pasture_Name", col.name)]
-    tmp <- unique(tmp)
+      tmp <- in.dat[in.dat$Pasture_Name %in% vec, c("Pasture_Name", col.name)]
+      tmp <- unique(tmp)
 
-    val <- mean(tmp[, col.name], na.rm = TRUE)
+      val <- mean(tmp[, col.name], na.rm = TRUE)
 
-    in.dat[in.dat$Pasture_Name == pas.vec[i], col.name] <- val
-  } #END Loop
+      in.dat[in.dat$Pasture_Name == pas.vec[i], col.name] <- val
+    } #END Loop
 
-  setTxtProgressBar(pb, i)
+    setTxtProgressBar(pb, i)
+  }
 
   return(in.dat)
 } #END Function
