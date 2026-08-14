@@ -1,6 +1,7 @@
 # Load required packages ----
 # These are the R packages that are used in the targets pipeline
 
+library(targets)
 library(tibble)
 library(plyr)
 library(dplyr)
@@ -14,3 +15,5 @@ library(lubridate)
 library(geosphere)
 library(sf)
 library(operators)
+library(spData)
+library(spdep)
